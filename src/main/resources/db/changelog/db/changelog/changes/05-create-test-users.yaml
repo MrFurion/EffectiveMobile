@@ -1,0 +1,35 @@
+databaseChangeLog:
+  - changeSet:
+      id: 5
+      author: author
+      changes:
+        - insert:
+            tableName: users
+            columns:
+              - column:
+                  name: username
+                  value: "Admin"
+              - column:
+                  name: password
+                  value: "$2a$10$FKpXp61J0hNg5/hYoJisU.77ocCHVfqPKbSvXuLaWj.QBEG7BxVS6"
+              - column:
+                  name: email
+                  value: "admin@mail.com"
+              - column:
+                  name: role
+                  value: "ROLE_ADMIN"
+        - insert:
+            tableName: users
+            columns:
+              - column:
+                  name: username
+                  value: "Bob"
+              - column:
+                  name: password
+                  value: "$2a$10$FKpXp61J0hNg5/hYoJisU.77ocCHVfqPKbSvXuLaWj.QBEG7BxVS6"
+              - column:
+                  name: email
+                  value: "bob@mail.com"
+              - column:
+                  name: role
+                  value: "ROLE_USER"

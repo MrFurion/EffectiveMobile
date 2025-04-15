@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: author
+      changes:
+        - createTable:
+            tableName: limits
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: card_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_limits_card
+                    references: cards(id)
+              - column:
+                  name: daily_limit
+                  type: decimal(19,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: monthly_limit
+                  type: decimal(19,2)
+                  constraints:
+                    nullable: false

@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20250413_add_card_block_reasons
+      author: author
+      changes:
+        - createTable:
+            tableName: card_block_reasons
+            columns:
+              - column:
+                  name: card_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reason
+                  type: varchar(255)
+              - column:
+                  name: request_date
+                  type: datetime
+              - column:
+                  name: status
+                  type: varchar(50)
+        - addForeignKeyConstraint:
+            baseTableName: card_block_reasons
+            baseColumnNames: card_id
+            constraintName: fk_card_block_reasons_card
+            referencedTableName: cards
+            referencedColumnNames: id
