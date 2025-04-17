@@ -2,6 +2,7 @@ package by.effective.mobile.eb.services.impl;
 
 import by.effective.mobile.eb.dto.request.RequestBlockCardDto;
 import by.effective.mobile.eb.dto.request.RequestTransactionDto;
+import by.effective.mobile.eb.dto.request.RequestWithdrawFromCard;
 import by.effective.mobile.eb.dto.response.ResponseFoundCardDto;
 import by.effective.mobile.eb.enums.CardStatus;
 import by.effective.mobile.eb.enums.TransactionType;
@@ -30,8 +31,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static by.effective.mobile.eb.services.constants.Constants.AMOUNT_TO_WITHDRAW_MUST_BE_POSITIVE_GOT;
 import static by.effective.mobile.eb.services.constants.Constants.CARD_NOT_FOUND_WITH_ID;
+import static by.effective.mobile.eb.services.constants.Constants.CARD_WITH_ID_IS_NOT_ACTIVE;
+import static by.effective.mobile.eb.services.constants.Constants.INSUFFICIENT_BALANCE_ON_CARD_WITH_ID_BALANCE_REQUIRED;
 import static by.effective.mobile.eb.services.constants.Constants.LIMIT_NOT_SET_FOR_CARD_WITH_ID;
+import static by.effective.mobile.eb.services.constants.Constants.TRANSACTION_EXCEEDS_DAILY_LIMIT_FOR_CARD_WITH_ID_SPENT_LIMIT_REQUESTED;
+import static by.effective.mobile.eb.services.constants.Constants.TRANSACTION_EXCEEDS_MONTHLY_LIMIT_FOR_CARD_WITH_ID_SPENT_LIMIT_REQUESTED;
 import static by.effective.mobile.eb.services.constants.Constants.USER_NOT_HAVE_CARD_WITH_ID;
 
 @Service
@@ -91,38 +97,8 @@ public class UserServiceImpl implements UserService {
             throw new LimitDayNotSetException();
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDate today = now.toLocalDate();
-
-        LocalDateTime dayStart = today.atStartOfDay();
-        LocalDateTime dayEnd = today.plusDays(1).atStartOfDay();
-        BigDecimal dailySpent = transactionRepository.findBySourceCardAndTransactionDataBetween(
-                        sourceCard,
-                        dayStart,
-                        dayEnd
-                ).stream()
-                .filter(tx -> tx.getTransactionType() == TransactionType.TRANSFER)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (dailySpent.add(requestTransactionDto.getAmount()).compareTo(limit.getDailyLimit()) > 0) {
-            throw new LimitDayNotSetException();
-        }
-
-        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
-        LocalDateTime monthEnd = today.withDayOfMonth(1).plusMonths(1).atStartOfDay();
-        BigDecimal monthlySpent = transactionRepository.findBySourceCardAndTransactionDataBetween(
-                        sourceCard,
-                        monthStart,
-                        monthEnd
-                ).stream()
-                .filter(tx -> tx.getTransactionType() == TransactionType.TRANSFER)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (monthlySpent.add(requestTransactionDto.getAmount()).compareTo(limit.getMonthlyLimit()) > 0) {
-            throw new LimitMonthNotSetException();
-        }
+        checkDailyLimit(sourceCard, requestTransactionDto.getAmount(), requestTransactionDto.getSourceCardId(), TransactionType.TRANSFER);
+        checkMonthlyLimit(sourceCard, requestTransactionDto.getAmount(), requestTransactionDto.getSourceCardId(), TransactionType.TRANSFER);
 
         sourceCard.setBalance(sourceCard.getBalance().subtract(requestTransactionDto.getAmount()));
         targetCard.setBalance(targetCard.getBalance().add(requestTransactionDto.getAmount()));
@@ -135,7 +111,7 @@ public class UserServiceImpl implements UserService {
         transaction.setTargetCard(targetCard);
         transaction.setAmount(requestTransactionDto.getAmount());
         transaction.setTransactionType(TransactionType.TRANSFER);
-        transaction.setTransactionData(now);
+        transaction.setTransactionData(LocalDateTime.now());
         transactionRepository.save(transaction);
     }
 
@@ -156,5 +132,96 @@ public class UserServiceImpl implements UserService {
         targetCard.setBalance(targetCard.getBalance().add(amount));
         cardRepository.save(targetCard);
         transactionRepository.save(transaction);
+    }
+
+    @Transactional
+    public void withdrawFromCard(RequestWithdrawFromCard requestWithdrawFromCard) {
+        Long userId = SecurityContext.getUserId();
+
+        Card card = cardRepository.findByIdAndUserId(requestWithdrawFromCard.getCardId(), userId)
+                .orElseThrow(() -> {
+                    log.error(CARD_NOT_FOUND_WITH_ID, requestWithdrawFromCard.getCardId());
+                    return new CardNotFoundException();
+                });
+
+        if (requestWithdrawFromCard.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            log.error(AMOUNT_TO_WITHDRAW_MUST_BE_POSITIVE_GOT, requestWithdrawFromCard.getAmount());
+            throw new CardNegativeBalanceException();
+        }
+
+        if (card.getCardStatus() != CardStatus.ACTIVE) {
+            log.error(CARD_WITH_ID_IS_NOT_ACTIVE, requestWithdrawFromCard.getCardId());
+            throw new CardNotActiveException();
+        }
+        if (card.getBalance().compareTo(requestWithdrawFromCard.getAmount()) < 0) {
+            log.error(INSUFFICIENT_BALANCE_ON_CARD_WITH_ID_BALANCE_REQUIRED,
+                    requestWithdrawFromCard.getCardId(), card.getBalance(), requestWithdrawFromCard.getAmount());
+            throw new CardNegativeBalanceException();
+        }
+
+        Limit limit = card.getLimit();
+        if (limit == null) {
+            log.error(LIMIT_NOT_SET_FOR_CARD_WITH_ID, requestWithdrawFromCard.getCardId());
+            throw new LimitDayNotSetException();
+        }
+
+        checkDailyLimit(card, requestWithdrawFromCard.getAmount(), requestWithdrawFromCard.getCardId(), TransactionType.DEBIT);
+        checkMonthlyLimit(card, requestWithdrawFromCard.getAmount(), requestWithdrawFromCard.getCardId(), TransactionType.DEBIT);
+
+        card.setBalance(card.getBalance().subtract(requestWithdrawFromCard.getAmount()));
+        cardRepository.save(card);
+
+        Transaction transaction = new Transaction();
+        transaction.setSourceCard(card);
+        transaction.setAmount(requestWithdrawFromCard.getAmount());
+        transaction.setTransactionType(TransactionType.DEBIT);
+        transaction.setTransactionData(LocalDateTime.now());
+        transactionRepository.save(transaction);
+    }
+
+    private void checkDailyLimit(Card card, BigDecimal amount, Long cardId, TransactionType transactionType) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
+        LocalDateTime dayStart = today.atStartOfDay();
+        LocalDateTime dayEnd = today.plusDays(1).atStartOfDay();
+
+        BigDecimal dailySpent = transactionRepository.findBySourceCardAndTransactionDataBetween(
+                        card,
+                        dayStart,
+                        dayEnd
+                ).stream()
+                .filter(tx -> tx.getTransactionType() == transactionType)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Limit limit = card.getLimit();
+        if (dailySpent.add(amount).compareTo(limit.getDailyLimit()) > 0) {
+            log.error(TRANSACTION_EXCEEDS_DAILY_LIMIT_FOR_CARD_WITH_ID_SPENT_LIMIT_REQUESTED,
+                    cardId, dailySpent, limit.getDailyLimit(), amount);
+            throw new LimitDayNotSetException();
+        }
+    }
+
+    private void checkMonthlyLimit(Card card, BigDecimal amount, Long cardId, TransactionType transactionType) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
+        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime monthEnd = today.withDayOfMonth(1).plusMonths(1).atStartOfDay();
+
+        BigDecimal monthlySpent = transactionRepository.findBySourceCardAndTransactionDataBetween(
+                        card,
+                        monthStart,
+                        monthEnd
+                ).stream()
+                .filter(tx -> tx.getTransactionType() == transactionType)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Limit limit = card.getLimit();
+        if (monthlySpent.add(amount).compareTo(limit.getMonthlyLimit()) > 0) {
+            log.error(TRANSACTION_EXCEEDS_MONTHLY_LIMIT_FOR_CARD_WITH_ID_SPENT_LIMIT_REQUESTED,
+                    cardId, monthlySpent, limit.getMonthlyLimit(), amount);
+            throw new LimitMonthNotSetException();
+        }
     }
 }

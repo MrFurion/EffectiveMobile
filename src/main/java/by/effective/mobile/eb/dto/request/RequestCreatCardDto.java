@@ -6,17 +6,23 @@ import lombok.Data;
 
 import java.time.LocalDate;
 
+import static by.effective.mobile.eb.dto.constant.DtoConstant.CARD_ID_SHOULD_NOT_BE_NULL;
+import static by.effective.mobile.eb.dto.constant.DtoConstant.EXPIRY_DATE_SHOULD_NOT_BE_NULL;
+import static by.effective.mobile.eb.dto.constant.DtoConstant.LIMIT_SHOULD_NOT_BE_NULL;
+import static by.effective.mobile.eb.dto.constant.DtoConstant.NUMBER_CAR_SHOULD_BY_16_CHARACTER;
+
 @Data
 public class RequestCreatCardDto {
 
-    @NotNull(message = "Expiry date should not be null")
+    @NotNull(message = EXPIRY_DATE_SHOULD_NOT_BE_NULL)
     private LocalDate expiryDate;
 
-    @Size(min = 16, max = 16, message = "Number car should by 16 character")
+    @Size(min = 16, max = 16, message = NUMBER_CAR_SHOULD_BY_16_CHARACTER)
     private String numberCard;
 
-    @NotNull
+    @NotNull(message = LIMIT_SHOULD_NOT_BE_NULL)
     private LimitDto limitDto;
-    @NotNull
+
+    @NotNull(message = CARD_ID_SHOULD_NOT_BE_NULL)
     private Long userId;
 }

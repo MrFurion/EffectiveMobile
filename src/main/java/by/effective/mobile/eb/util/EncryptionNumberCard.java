@@ -22,11 +22,4 @@ public class EncryptionNumberCard {
         byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(encryptedData));
         return new String(decrypted);
     }
-
-    public static String maskCardNumber(String cardNumber) {
-        if (cardNumber == null || cardNumber.length() < 4) {
-            return cardNumber;
-        }
-        return "****-****-****-" + cardNumber.substring(cardNumber.length() - 4);
-    }
 }

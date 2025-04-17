@@ -43,7 +43,16 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation 'org.mockito:mockito-core:5.0.0'
+	testImplementation 'org.mockito:mockito-inline:5.0.0'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testImplementation 'org.testcontainers:postgresql'
+	testImplementation "org.assertj:assertj-core:3.24.2"
+	testImplementation 'org.projectlombok:lombok:1.18.24'
+
+}
+test {
+	useJUnitPlatform()
 }
 
 tasks.named('test') {

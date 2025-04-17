@@ -5,11 +5,16 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import static by.effective.mobile.eb.dto.constant.DtoConstant.EMAIL_SHOULD_BE_A_VALID_EMAIL_ADDRESS;
+import static by.effective.mobile.eb.dto.constant.DtoConstant.EMAIL_SHOULD_NOT_BE_EMPTY;
+import static by.effective.mobile.eb.dto.constant.DtoConstant.PASSWORD_SHOULD_BE_BETWEEN_2_AND_15_CHARACTER;
+
 @Data
 public class RequestLoginUserDto {
-    @NotEmpty(message = "Email should not be empty")
-    @Email(message = "Email should be a valid email address")
+
+    @NotEmpty(message = EMAIL_SHOULD_NOT_BE_EMPTY)
+    @Email(message = EMAIL_SHOULD_BE_A_VALID_EMAIL_ADDRESS)
     private String email;
-    @Size(min = 2, max = 15, message = "Password should be between 2 and 15 character")
+    @Size(min = 2, max = 15, message = PASSWORD_SHOULD_BE_BETWEEN_2_AND_15_CHARACTER)
     private String password;
 }
